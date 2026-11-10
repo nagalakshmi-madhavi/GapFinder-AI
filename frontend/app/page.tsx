@@ -19,6 +19,8 @@ export default function Home() {
   const [chatAnswer, setChatAnswer] = useState<any>(null);
 
   const [result, setResult] = useState<any>(null);
+  const [gapReport, setGapReport] = useState<any>(null);
+  const [revisionPlan, setRevisionPlan] = useState<any>(null);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [evaluation, setEvaluation] = useState<any>(null);
@@ -143,22 +145,21 @@ export default function Home() {
       setResult(data);
     }
   }
+async function getGapReport() {
+  const data = await requestApi("/gap-report");
 
-  async function getGapReport() {
-    const data = await requestApi("/gap-report");
-
-    if (data) {
-      setResult(data);
-    }
+  if (data) {
+    setGapReport(data);
   }
+}
 
-  async function getRevisionPlan() {
-    const data = await requestApi("/revision-plan");
+async function getRevisionPlan() {
+  const data = await requestApi("/revision-plan");
 
-    if (data) {
-      setResult(data);
-    }
+  if (data) {
+    setRevisionPlan(data);
   }
+}
 
   async function askQuestion() {
     if (!question.trim()) {
@@ -397,6 +398,35 @@ export default function Home() {
             >
               Generate Gap Report
             </button>
+                       {gapReport && (
+              <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <h3 className="text-lg font-bold text-blue-900">
+                  Knowledge Gap Report
+                </h3>
+
+                <p className="mt-3"><strong>Topic:</strong> {gapReport.topic}</p>
+                <p><strong>Score:</strong> {gapReport.score_percentage}%</p>
+                <p><strong>Status:</strong> {gapReport.topic_status}</p>
+                <p><strong>Total Questions:</strong> {gapReport.total_questions}</p>
+                <p><strong>Correct Answers:</strong> {gapReport.correct_answers}</p>
+                <p><strong>Wrong Answers:</strong> {gapReport.wrong_answers}</p>
+
+                <p className="mt-3"><strong>Reason:</strong> {gapReport.reason}</p>
+                <p className="mt-2"><strong>Recommendation:</strong> {gapReport.recommendation}</p>
+
+                <h4 className="mt-4 font-semibold">Areas to Improve</h4>
+
+                {gapReport.areas_to_improve?.map((item: any) => (
+                  <div key={item.question_id} className="mt-3 rounded-lg bg-white p-3 text-sm">
+                    <p><strong>Question:</strong> {item.question_id}</p>
+                    <p><strong>Your Answer:</strong> {item.student_answer}</p>
+                    <p><strong>Correct Answer:</strong> {item.correct_answer}</p>
+                    <p><strong>Explanation:</strong> {item.explanation}</p>
+                    <p><strong>Page:</strong> {item.page}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* 5. Revision Plan */}
@@ -415,6 +445,56 @@ export default function Home() {
             >
               Generate Revision Plan
             </button>
+                       {revisionPlan && (
+              <div className="mt-5 rounded-lg border border-green-200 bg-green-50 p-4">
+                <h3 className="text-lg font-bold text-green-900">
+                  Personalized Revision Plan
+                </h3>
+
+                <p className="mt-3">
+                  <strong>Topic:</strong> {revisionPlan.topic}
+                </p>
+
+                <p>
+                  <strong>Current Status:</strong> {revisionPlan.current_status}
+                </p>
+
+                <p>
+                  <strong>Current Score:</strong> {revisionPlan.current_score}%
+                </p>
+
+                <p>
+                  <strong>Priority:</strong> {revisionPlan.priority}
+                </p>
+
+                <p>
+                  <strong>Total Revision Time:</strong>{" "}
+                  {revisionPlan.total_revision_time_minutes} minutes
+                </p>
+
+                <h4 className="mt-4 font-semibold">Revision Tasks</h4>
+
+                {revisionPlan.revision_tasks?.map((task: any) => (
+                  <div
+                    key={task.step}
+                    className="mt-3 rounded-lg bg-white p-3 text-sm"
+                  >
+                    <p><strong>Step {task.step}:</strong> {task.activity}</p>
+                    <p><strong>Duration:</strong> {task.duration_minutes} minutes</p>
+                  </div>
+                ))}
+
+                <p className="mt-3">
+                  <strong>Retest Recommended:</strong>{" "}
+                  {revisionPlan.retest_recommended ? "Yes" : "No"}
+                </p>
+
+                <p className="mt-2">
+                  <strong>Exam Importance:</strong>{" "}
+                  {revisionPlan.exam_importance}
+                </p>
+              </div>
+            )}
           </section>
 
           {/* 6. Ask AI Assistant */}
