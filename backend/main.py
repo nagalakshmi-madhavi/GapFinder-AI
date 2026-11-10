@@ -70,7 +70,7 @@ latest_quiz_topic = ""
 latest_evaluation = None
 
 
-# Helper: Extract JSON from AI response
+# Helper: Extract and repair JSON from AI response
 def parse_ai_json(content):
 
     if not content:
@@ -78,21 +78,61 @@ def parse_ai_json(content):
 
     content = content.strip()
 
-    # Remove Markdown code fences
     if content.startswith("```"):
         content = content.replace("```json", "")
         content = content.replace("```", "").strip()
 
-    # Find JSON boundaries
     start = content.find("{")
     end = content.rfind("}")
 
-    if start == -1 or end == -1 or end < start:
-        raise ValueError(
-            f"No valid JSON found in AI response: {content[:500]}"
+    if start == -1 or end == -1:
+        raise ValueError("No JSON found in AI response")
+
+    json_text = content[start:end + 1]
+
+    try:
+        return json.loads(json_text)
+
+    except json.JSONDecodeError:
+
+        repair_response = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Fix the invalid JSON. "
+                        "Return only valid JSON. "
+                        "Do not add or remove information."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": json_text
+                }
+            ]
         )
 
-    return json.loads(content[start:end + 1])
+        repaired_content = repair_response.choices[0].message.content
+
+        if not repaired_content:
+            raise ValueError("AI could not repair the JSON")
+
+        repaired_content = repaired_content.strip()
+
+        if repaired_content.startswith("```"):
+            repaired_content = repaired_content.replace("```json", "")
+            repaired_content = repaired_content.replace("```", "").strip()
+
+        repair_start = repaired_content.find("{")
+        repair_end = repaired_content.rfind("}")
+
+        if repair_start == -1 or repair_end == -1:
+            raise ValueError("Repaired response is not valid JSON")
+
+        return json.loads(
+            repaired_content[repair_start:repair_end + 1]
+        )
 
 
 # Home endpoint
