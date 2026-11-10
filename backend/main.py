@@ -195,7 +195,52 @@ def extract_topics():
                         )
                     }
                 ],
-                response_format={"type": "json_object"}
+                response_format={
+    "type": "json_schema",
+    "json_schema": {
+        "name": "topic_extraction",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "units": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "unit": {"type": "string"},
+                            "topics": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "topic": {"type": "string"},
+                                        "subtopics": {
+                                            "type": "array",
+                                            "items": {"type": "string"}
+                                        },
+                                        "pages": {
+                                            "type": "array",
+                                            "items": {"type": "integer"}
+                                        }
+                                    },
+                                    "required": [
+                                        "topic", "subtopics", "pages"
+                                    ],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": ["unit", "topics"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["units"],
+            "additionalProperties": False
+        }
+    }
+}
             )
 
             result = json.loads(
