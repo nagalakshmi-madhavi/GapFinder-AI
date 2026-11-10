@@ -4,7 +4,6 @@ python-multipart
 pypdf
 python-dotenv
 groq
-sentence-transformers
-faiss-cpu
+scikit-learn
 numpy
 pandas
