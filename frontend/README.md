@@ -1,36 +1,169 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+# GapFinder AI – AI-Powered Personalized Learning Assistant
 
-First, run the development server:
+## Project Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+GapFinder AI is an AI-powered personalized learning platform designed to identify what students don't know.
+
+Instead of studying every topic equally, students can upload their study materials, take AI-generated quizzes, identify weak areas, and receive personalized revision plans.
+
+The main goal is to help students focus on topics that need improvement.
+
+## Problem Statement
+
+Students often spend equal time revising all topics without knowing their actual knowledge gaps. GapFinder AI addresses this problem by analyzing quiz performance and generating topic-level feedback and revision recommendations.
+
+## Key Features
+
+1. **PDF Upload:** Upload study materials in PDF format.
+2. **Topic Extraction:** Automatically extract important topics from uploaded materials.
+3. **AI Chat Assistant:** Ask questions about the uploaded study material.
+4. **Quiz Generation:** Generate questions based on the uploaded content.
+5. **Quiz Evaluation:** Evaluate student answers and provide explanations.
+6. **Knowledge Gap Report:** Identify weak areas based on quiz performance.
+7. **Personalized Revision Plan:** Generate prioritized revision tasks with estimated study time.
+
+## Technology Stack
+
+### Frontend
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+
+### Backend
+- Python
+- FastAPI
+
+### AI and Machine Learning
+- Groq LLM API
+- Retrieval-Augmented Generation (RAG)
+- TF-IDF
+- Scikit-learn
+
+### PDF Processing
+- PyPDF
+
+### Deployment
+- Frontend: Vercel
+- Backend: Render
+
+## How It Works
+
+1. Student uploads a PDF study material.
+2. Backend extracts text and divides it into smaller chunks.
+3. TF-IDF-based retrieval helps identify relevant content.
+4. Groq LLM generates topic-related responses and quiz questions using retrieved context.
+5. Student attempts the generated quiz.
+6. Backend evaluates answers and identifies weak areas.
+7. GapFinder AI generates a personalized revision plan.
+
+### Core Workflow
+
+Upload Material → Extract Topics → Generate Quiz → Evaluate Answers → Identify Knowledge Gaps → Personalized Revision Plan
+
+## Project Structure
+
+```text
+GapFinder-AI/
+│
+├── backend/
+│   ├── main.py
+│   ├── rag.py
+│   ├── vector_store.py
+│   ├── requirements.txt
+│   └── .env
+│
+├── frontend/
+│   ├── app/
+│   │   ├── page.tsx
+│   │   ├── layout.tsx
+│   │   └── globals.css
+│   ├── package.json
+│   └── ...
+│
+└── README.md
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Installation and Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Clone the Repository
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+git clone https://github.com/nagalakshmi-madhavi/GapFinder-AI.git
+cd GapFinder-AI
+```
 
-## Learn More
+### 2. Backend Setup
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cd backend
+python -m venv .venv
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Activate the virtual environment on Windows:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+.venv\Scripts\activate
+```
 
-## Deploy on Vercel
+Install dependencies:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pip install -r requirements.txt
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Create a `.env` file inside the backend folder:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+```
+
+Start the backend:
+
+```bash
+uvicorn main:app --reload
+```
+
+Backend API documentation:
+
+http://127.0.0.1:8000/docs
+
+### 3. Frontend Setup
+
+Open another terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the application:
+
+http://localhost:3000
+
+## Live Deployment
+
+- **Frontend:** https://gap-finder-ai-ten.vercel.app/
+- **Backend API:** https://gapfinder-ai-4bom.onrender.com/
+- **API Documentation:** https://gapfinder-ai-4bom.onrender.com/docs
+
+## GitHub Repository
+
+https://github.com/nagalakshmi-madhavi/GapFinder-AI
+
+## Future Enhancements
+
+- Student login and authentication.
+- Progress tracking across multiple quiz attempts.
+- Past question paper analysis.
+- Exam importance-based topic prioritization.
+- Teacher dashboard and class-level analytics.
+- Spaced repetition and revision reminders.
+
+## Conclusion
+
+GapFinder AI transforms traditional studying into a personalized learning experience by identifying knowledge gaps and helping students focus on the topics they need to improve.
+
+**Upload → Test → Diagnose → Revise → Improve**
