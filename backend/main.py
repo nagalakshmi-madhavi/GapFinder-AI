@@ -37,12 +37,11 @@ app = FastAPI(
 # Enable CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-   allow_origins=[
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://gap-finder-ai-ten.vercel.app"
-],
-    
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://gap-finder-ai-ten.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,6 +68,31 @@ vector_store = VectorStore()
 latest_quiz = []
 latest_quiz_topic = ""
 latest_evaluation = None
+
+
+# Helper: Extract JSON from AI response
+def parse_ai_json(content):
+
+    if not content:
+        raise ValueError("AI returned an empty response")
+
+    content = content.strip()
+
+    # Remove Markdown code fences
+    if content.startswith("```"):
+        content = content.replace("```json", "")
+        content = content.replace("```", "").strip()
+
+    # Find JSON boundaries
+    start = content.find("{")
+    end = content.rfind("}")
+
+    if start == -1 or end == -1 or end < start:
+        raise ValueError(
+            f"No valid JSON found in AI response: {content[:500]}"
+        )
+
+    return json.loads(content[start:end + 1])
 
 
 # Home endpoint
@@ -120,7 +144,6 @@ async def upload_pdf(file: UploadFile = File(...)):
 
         vector_store.add_documents(chunks)
 
-        # Clear previous quiz and evaluation
         latest_quiz = []
         latest_quiz_topic = ""
         latest_evaluation = None
@@ -140,7 +163,6 @@ async def upload_pdf(file: UploadFile = File(...)):
         "total_pages": len(set(chunk["page"] for chunk in chunks)),
         "message": "PDF uploaded and indexed successfully"
     }
-
 
 
 # Extract topics from uploaded study material
@@ -180,8 +202,9 @@ def extract_topics():
                             "Extract units, topics and subtopics ONLY "
                             "from the provided document. "
                             "Do not invent topics or page numbers. "
-                            "Return valid JSON only. "
-                            "Use exactly this structure: "
+                            "Return ONLY a valid JSON object. "
+                            "Do not include Markdown or explanations. "
+                            "Use this exact structure: "
                             '{"units":[{"unit":"Unit name",'
                             '"topics":[{"topic":"Topic name",'
                             '"subtopics":["Subtopic 1"],'
@@ -197,23 +220,21 @@ def extract_topics():
                             + context
                         )
                     }
-                ],
-                response_format={"type": "json_object"}
+                ]
             )
 
             content = response.choices[0].message.content
 
-            if not content:
-                raise ValueError("AI returned an empty response")
-
-            result = json.loads(content)
+            result = parse_ai_json(content)
 
             if not isinstance(result.get("units"), list):
                 raise ValueError("Invalid topic JSON structure")
 
             all_topics.extend(result["units"])
 
-            print(f"Processed batch {start // batch_size + 1}")
+            print(
+                f"Processed batch {start // batch_size + 1}"
+            )
 
             if start + batch_size < len(chunks):
                 time.sleep(25)
@@ -277,7 +298,6 @@ def extract_topics():
         )
 
 
-
 # RAG-based chatbot
 @app.post("/chat")
 def chat(request: ChatRequest):
@@ -311,7 +331,7 @@ def chat(request: ChatRequest):
 
     try:
         response = client.chat.completions.create(
-           model="openai/gpt-oss-20b",
+            model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system",
@@ -456,14 +476,10 @@ def generate_quiz(request: QuizRequest):
             if question["correct_answer"] not in ["A", "B", "C", "D"]:
                 raise ValueError("Invalid correct answer")
 
-        # Save quiz internally
         latest_quiz = questions
         latest_quiz_topic = request.topic.strip()
-
-        # Clear previous evaluation
         latest_evaluation = None
 
-        # Hide correct answers from student
         student_questions = []
 
         for index, question in enumerate(questions):
@@ -536,7 +552,6 @@ def submit_quiz(request: QuizSubmitRequest):
     total = len(latest_quiz)
     percentage = round((score / total) * 100, 2)
 
-    # Save evaluation for gap analysis
     latest_evaluation = {
         "topic": latest_quiz_topic,
         "total_questions": total,
@@ -723,4 +738,5 @@ def revision_plan():
             "to analyse actual exam frequency."
         )
     }
+
 
