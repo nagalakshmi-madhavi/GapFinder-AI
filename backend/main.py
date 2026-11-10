@@ -142,6 +142,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     }
 
 
+
 # Extract topics from uploaded study material
 @app.post("/topics")
 def extract_topics():
@@ -170,7 +171,7 @@ def extract_topics():
                 )
 
             response = client.chat.completions.create(
-                model="openai/gpt-oss-20b" , 
+                model="openai/gpt-oss-20b",
                 messages=[
                     {
                         "role": "system",
@@ -179,7 +180,8 @@ def extract_topics():
                             "Extract units, topics and subtopics ONLY "
                             "from the provided document. "
                             "Do not invent topics or page numbers. "
-                            "Return valid JSON only in this format: "
+                            "Return valid JSON only. "
+                            "Use exactly this structure: "
                             '{"units":[{"unit":"Unit name",'
                             '"topics":[{"topic":"Topic name",'
                             '"subtopics":["Subtopic 1"],'
@@ -190,64 +192,26 @@ def extract_topics():
                         "role": "user",
                         "content": (
                             "Extract topics from this document section. "
-                            "Preserve the original page numbers.\n"
+                            "Preserve the original page numbers. "
+                            "Return an empty units array if no topics exist.\n"
                             + context
                         )
                     }
                 ],
-                response_format={
-    "type": "json_schema",
-    "json_schema": {
-        "name": "topic_extraction",
-        "strict": True,
-        "schema": {
-            "type": "object",
-            "properties": {
-                "units": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "unit": {"type": "string"},
-                            "topics": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "topic": {"type": "string"},
-                                        "subtopics": {
-                                            "type": "array",
-                                            "items": {"type": "string"}
-                                        },
-                                        "pages": {
-                                            "type": "array",
-                                            "items": {"type": "integer"}
-                                        }
-                                    },
-                                    "required": [
-                                        "topic", "subtopics", "pages"
-                                    ],
-                                    "additionalProperties": False
-                                }
-                            }
-                        },
-                        "required": ["unit", "topics"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            "required": ["units"],
-            "additionalProperties": False
-        }
-    }
-}
+                response_format={"type": "json_object"}
             )
 
-            result = json.loads(
-                response.choices[0].message.content
-            )
+            content = response.choices[0].message.content
 
-            all_topics.extend(result.get("units", []))
+            if not content:
+                raise ValueError("AI returned an empty response")
+
+            result = json.loads(content)
+
+            if not isinstance(result.get("units"), list):
+                raise ValueError("Invalid topic JSON structure")
+
+            all_topics.extend(result["units"])
 
             print(f"Processed batch {start // batch_size + 1}")
 
@@ -278,11 +242,13 @@ def extract_topics():
                 existing = merged_units[unit_name][topic_name]
 
                 existing["subtopics"] = list(dict.fromkeys(
-                    existing["subtopics"] + topic.get("subtopics", [])
+                    existing["subtopics"]
+                    + topic.get("subtopics", [])
                 ))
 
                 existing["pages"] = sorted(set(
-                    existing["pages"] + topic.get("pages", [])
+                    existing["pages"]
+                    + topic.get("pages", [])
                 ))
 
         final_units = []
@@ -303,10 +269,13 @@ def extract_topics():
         }
 
     except Exception as error:
+        print(f"Topic extraction error: {error}")
+
         raise HTTPException(
             status_code=500,
             detail=f"Topic extraction failed: {str(error)}"
         )
+
 
 
 # RAG-based chatbot
