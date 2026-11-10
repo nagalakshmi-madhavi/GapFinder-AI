@@ -170,7 +170,7 @@ def extract_topics():
                 )
 
             response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",  
+                model="openai/gpt-oss-20b" , 
                 messages=[
                     {
                         "role": "system",
@@ -342,7 +342,7 @@ def chat(request: ChatRequest):
 
     try:
         response = client.chat.completions.create(
-           model="llama-3.1-8b-instant",
+           model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system",
@@ -419,7 +419,7 @@ def generate_quiz(request: QuizRequest):
 
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system",
