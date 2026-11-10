@@ -69,55 +69,94 @@ latest_quiz = []
 latest_quiz_topic = ""
 latest_evaluation = None
 
-
 # Helper: Extract and repair JSON from AI response
 def parse_ai_json(content):
 
-    if not content:
+    if not content or not content.strip():
         raise ValueError("AI returned an empty response")
 
     content = content.strip()
 
+    # Remove Markdown code fences
     if content.startswith("```"):
         content = content.replace("```json", "")
         content = content.replace("```", "").strip()
 
+    # Find JSON object
     start = content.find("{")
     end = content.rfind("}")
 
     if start == -1 or end == -1:
-        raise ValueError("No JSON found in AI response")
+        raise ValueError(
+            f"No valid JSON found. AI response: {content[:300]}"
+        )
 
     json_text = content[start:end + 1]
 
+    # First attempt: Parse JSON
     try:
-        return json.loads(json_text)
+        result = json.loads(json_text)
+
+        if not isinstance(result, dict):
+            raise ValueError("AI response must be a JSON object")
+
+        return result
 
     except json.JSONDecodeError:
 
+        # Second attempt: Repair invalid JSON
         repair_response = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "Fix the invalid JSON. "
-                        "Return only valid JSON. "
-                        "Do not add or remove information."
+                        "You are a JSON repair assistant. "
+                        "Convert invalid JSON into valid JSON. "
+                        "Preserve all information. "
+                        "Return only a valid JSON object. "
+                        "Do not include Markdown or explanations."
                     )
                 },
                 {
                     "role": "user",
                     "content": json_text
                 }
-            ]
+            ],
+            reasoning_effort="low",
+            max_completion_tokens=4096,
+            include_reasoning=False
         )
 
-        repaired_content = repair_response.choices[0].message.content
+        repaired_content = (
+            repair_response.choices[0].message.content
+        )
 
-        if not repaired_content:
-            raise ValueError("AI could not repair the JSON")
+        if not repaired_content or not repaired_content.strip():
+            raise ValueError("AI could not repair the invalid JSON")
 
+        repaired_content = repaired_content.strip()
+
+        if repaired_content.startswith("```"):
+            repaired_content = repaired_content.replace("```json", "")
+            repaired_content = repaired_content.replace("```", "").strip()
+
+        repair_start = repaired_content.find("{")
+        repair_end = repaired_content.rfind("}")
+
+        if repair_start == -1 or repair_end == -1:
+            raise ValueError("Repaired response does not contain JSON")
+
+        repaired_json = repaired_content[
+            repair_start:repair_end + 1
+        ]
+
+        result = json.loads(repaired_json)
+
+        if not isinstance(result, dict):
+            raise ValueError("Repaired response is not a JSON object")
+
+        return result
         repaired_content = repaired_content.strip()
 
         if repaired_content.startswith("```"):
@@ -204,7 +243,6 @@ async def upload_pdf(file: UploadFile = File(...)):
         "message": "PDF uploaded and indexed successfully"
     }
 
-
 # Extract topics from uploaded study material
 @app.post("/topics")
 def extract_topics():
@@ -216,68 +254,137 @@ def extract_topics():
         )
 
     all_topics = []
-    batch_size = 5
     chunks = vector_store.chunks
+    batch_size = 3
 
     try:
+
         for start in range(0, len(chunks), batch_size):
 
             batch = chunks[start:start + batch_size]
 
-            context = ""
+            context_parts = []
 
             for item in batch:
-                context += (
-                    f"\n[Page {item['page']}]\n"
-                    f"{item['text']}\n"
+                context_parts.append(
+                    f"\n[Page {item['page']}]\n{item['text']}"
                 )
 
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an academic syllabus analyzer. "
-                            "Extract units, topics and subtopics ONLY "
-                            "from the provided document. "
-                            "Do not invent topics or page numbers. "
-                            "Return ONLY a valid JSON object. "
-                            "Do not include Markdown or explanations. "
-                            "Use this exact structure: "
-                            '{"units":[{"unit":"Unit name",'
-                            '"topics":[{"topic":"Topic name",'
-                            '"subtopics":["Subtopic 1"],'
-                            '"pages":[1,2]}]}]}'
-                        )
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            "Extract topics from this document section. "
-                            "Preserve the original page numbers. "
-                            "Return an empty units array if no topics exist.\n"
-                            + context
-                        )
-                    }
-                ]
-            )
+            context = "\n".join(context_parts)
 
-            content = response.choices[0].message.content
+            prompt = f"""
+You are an academic syllabus analyzer.
 
+Extract units, topics and subtopics ONLY from
+the provided study material.
+
+Rules:
+1. Do not invent topics.
+2. Preserve original page numbers.
+3. Return only valid JSON.
+4. Do not include Markdown.
+5. If no topics are found, return an empty units array.
+
+Required JSON format:
+
+{{
+    "units": [
+        {{
+            "unit": "Unit name",
+            "topics": [
+                {{
+                    "topic": "Topic name",
+                    "subtopics": ["Subtopic 1"],
+                    "pages": [1, 2]
+                }}
+            ]
+        }}
+    ]
+}}
+
+Study material:
+{context}
+"""
+
+            content = None
+            last_error = None
+
+            # Retry AI request up to 2 times
+            for attempt in range(2):
+
+                try:
+
+                    response = client.chat.completions.create(
+                        model="openai/gpt-oss-20b",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        reasoning_effort="low",
+                        max_completion_tokens=4096,
+                        include_reasoning=False,
+                        response_format={
+                            "type": "json_object"
+                        }
+                    )
+
+                    message = response.choices[0].message
+
+                    content = message.content
+
+                    if content and content.strip():
+                        break
+
+                    finish_reason = response.choices[0].finish_reason
+
+                    last_error = (
+                        f"Empty AI response. "
+                        f"Finish reason: {finish_reason}"
+                    )
+
+                    print(
+                        f"Empty response on attempt {attempt + 1}: "
+                        f"{last_error}"
+                    )
+
+                    time.sleep(2)
+
+                except Exception as error:
+
+                    last_error = str(error)
+
+                    print(
+                        f"AI request failed on attempt "
+                        f"{attempt + 1}: {error}"
+                    )
+
+                    time.sleep(2)
+
+            if not content or not content.strip():
+
+                raise ValueError(
+                    f"AI failed for batch "
+                    f"{start // batch_size + 1}. "
+                    f"{last_error}"
+                )
+
+            # Parse AI response
             result = parse_ai_json(content)
 
             if not isinstance(result.get("units"), list):
-                raise ValueError("Invalid topic JSON structure")
+                raise ValueError("Invalid units format in AI response")
 
             all_topics.extend(result["units"])
 
             print(
-                f"Processed batch {start // batch_size + 1}"
+                f"Successfully processed batch "
+                f"{start // batch_size + 1}"
             )
 
             if start + batch_size < len(chunks):
-                time.sleep(25)
+                time.sleep(2)
 
         # Merge duplicate units and topics
         merged_units = {}
@@ -294,6 +401,7 @@ def extract_topics():
                 topic_name = topic.get("topic", "Unknown Topic")
 
                 if topic_name not in merged_units[unit_name]:
+
                     merged_units[unit_name][topic_name] = {
                         "topic": topic_name,
                         "subtopics": [],
@@ -312,9 +420,11 @@ def extract_topics():
                     + topic.get("pages", [])
                 ))
 
+        # Prepare final output
         final_units = []
 
         for unit_name, topics in merged_units.items():
+
             final_units.append({
                 "unit": unit_name,
                 "topics": list(topics.values())
@@ -330,6 +440,7 @@ def extract_topics():
         }
 
     except Exception as error:
+
         print(f"Topic extraction error: {error}")
 
         raise HTTPException(
